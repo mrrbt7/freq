@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<meta name="theme-color" content="#000000"/>
+<title>FREQ</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#000;color:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:#2a2a2a;border-radius:99px}
+::-webkit-scrollbar-track{background:transparent}
+input{font-size:16px!important;color-scheme:dark}
+
+.spin{animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Auth */
+.auth-wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:24px}
+.auth-box{width:100%;max-width:340px}
+.auth-title{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px}
+.auth-sub{font-size:10px;color:#1a5c6a;letter-spacing:2px;font-weight:700;text-transform:uppercase;margin-bottom:28px}
+.inp{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #2a2a2a;background:#111;color:#e8e8e8;font-size:14px;font-family:inherit;outline:none;margin-bottom:12px;transition:border-color .15s}
+.inp:focus{border-color:#444}
+.btn-primary{width:100%;padding:12px;border-radius:10px;border:none;background:#CAFF4C;color:#000;font-weight:800;font-size:14px;font-family:inherit;cursor:pointer}
+.btn-primary:disabled{background:#2a2a2a;color:#555;cursor:default}
+.err{font-size:12px;color:#FF453A;margin-bottom:12px;padding:9px 12px;border-radius:8px;background:#1a0a0a}
+
+/* App shell */
+.app{height:100%;display:flex;flex-direction:column}
+
+/* Header */
+.header{padding:14px 16px 10px;border-bottom:1px solid #1a1a1a;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.header-left{display:flex;align-items:baseline;gap:8px}
+.app-name{font-size:18px;font-weight:900;letter-spacing:-1px}
+.app-count{font-size:11px;color:#555;font-weight:500}
+.signout-btn{background:none;border:1px solid #2a2a2a;border-radius:7px;padding:5px 10px;cursor:pointer;color:#555;font-size:11px;font-family:inherit;transition:color .15s}
+.signout-btn:hover{color:#e8e8e8}
+
+/* Tabs */
+.tabs{display:flex;gap:0;border-bottom:1px solid #1a1a1a;flex-shrink:0}
+.tab{flex:1;padding:11px 0;text-align:center;font-size:12px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;color:#555;border-bottom:2px solid transparent;transition:color .15s,border-color .15s;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+.tab.active-do{color:#FF453A;border-bottom-color:#FF453A}
+.tab.active-dont{color:#30D158;border-bottom-color:#30D158}
+.tab:not(.active-do):not(.active-dont):hover{color:#aaa}
+
+/* Filter bar */
+.filter-bar{padding:8px 16px;flex-shrink:0;border-bottom:1px solid #111}
+.filter-inp{width:100%;padding:7px 11px;border-radius:8px;border:1px solid #1a1a1a;background:#0d0d0d;color:#e8e8e8;font-size:13px;font-family:inherit;outline:none;transition:border-color .15s}
+.filter-inp:focus{border-color:#333}
+.filter-inp::placeholder{color:#444}
+
+/* Column headers */
+.col-headers{display:grid;grid-template-columns:44px 1fr 64px 64px;gap:0;padding:6px 16px 4px;flex-shrink:0}
+.col-hdr{font-size:9px;font-weight:700;color:#333;letter-spacing:1.2px;text-transform:uppercase}
+.col-hdr.right{text-align:right}
+
+/* List */
+.list{flex:1;overflow-y:auto;padding:4px 0 32px}
+
+/* Row */
+.row{display:grid;grid-template-columns:44px 1fr 64px 64px;gap:0;align-items:center;padding:10px 16px;border-bottom:1px solid #0e0e0e;cursor:pointer;transition:background .1s}
+.row:hover{background:#0a0a0a}
+.row:active{background:#111}
+
+.cell-freq{font-size:12px;font-weight:700;color:#555;font-variant-numeric:tabular-nums}
+.cell-name{font-size:13px;color:#e8e8e8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:10px}
+.cell-since{font-size:12px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.cell-over{font-size:12px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+
+/* Section label */
+.section-label{padding:10px 16px 4px;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.section-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.section-text{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase}
+
+/* Empty */
+.empty{text-align:center;padding:64px 0;color:#333;font-size:14px}
+.empty-icon{font-size:28px;margin-bottom:10px}
+
+/* Loading */
+.loading{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const SURL='https://hnfvtllodmgsipyuwzsx.supabase.co';
+const SKEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhuZnZ0bGxvZG1nc2lweXV3enN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE3MjgwNzEsImV4cCI6MjA4NzMwNDA3MX0.4YzxxQK9PPPo1qGs9mEb6JhE5Ic6Y3_Lt9CGYtCCZEU';
+const db=supabase.createClient(SURL,SKEY);
+
+const WDN=["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
+
+// Frequency → number of days (weekday names = 7)
+function freqDays(f){
+  if(!f)return null;
+  const s=f.trim().toLowerCase();
+  if(WDN.includes(s)||s==="weekday"||s==="weekdays"||s==="weekend"||s==="weekends"||s==="weekly")return 7;
+  if(s==="daily")return 1;
+  if(s==="monthly")return 30;
+  if(s==="yearly")return 365;
+  const n=parseInt(s);
+  return(!isNaN(n)&&n>0)?n:null;
+}
+
+// Days since last completion
+function daysSinceDone(t){
+  if(!t.completion_log||!t.completion_log.length)return null;
+  const last=[...t.completion_log].sort((a,b)=>b.doneAt.localeCompare(a.doneAt))[0];
+  if(!last||!last.doneAt)return null;
+  return Math.round((new Date()-new Date(last.doneAt))/(1000*60*60*24));
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────
+function renderAuth(){
+  const root=document.getElementById('root');
+  root.innerHTML=`
+    <div class="auth-wrap">
+      <div class="auth-box">
+        <div class="app-name">FREQ</div>
+        <div class="auth-sub" style="margin-bottom:28px">frequency tracker</div>
+        <label style="display:block;font-size:10px;font-weight:700;color:#555;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px">Email</label>
+        <input class="inp" id="email" type="email" placeholder="you@example.com" autocapitalize="none"/>
+        <label style="display:block;font-size:10px;font-weight:700;color:#555;letter-spacing:1.2px;text-transform:uppercase;margin-bottom:5px">Password</label>
+        <input class="inp" id="pw" type="password" placeholder="••••••••" style="margin-bottom:16px"/>
+        <div id="err" style="display:none" class="err"></div>
+        <button class="btn-primary" id="signin">Sign In</button>
+      </div>
+    </div>`;
+
+  const emailEl=root.querySelector('#email');
+  const pwEl=root.querySelector('#pw');
+  const errEl=root.querySelector('#err');
+  const btn=root.querySelector('#signin');
+
+  async function submit(){
+    const email=emailEl.value.trim();
+    const pw=pwEl.value;
+    if(!email||!pw){showErr('Email and password required');return;}
+    btn.disabled=true;btn.textContent='Signing in…';
+    const{data,error}=await db.auth.signInWithPassword({email,password:pw});
+    if(error){showErr(error.message);btn.disabled=false;btn.textContent='Sign In';return;}
+    renderApp(data.user);
+  }
+  function showErr(msg){errEl.textContent=msg;errEl.style.display='block';}
+  btn.addEventListener('click',submit);
+  [emailEl,pwEl].forEach(el=>el.addEventListener('keydown',e=>{if(e.key==='Enter')submit();}));
+}
+
+// ── App ───────────────────────────────────────────────────────────────
+let appState={tasks:[],tab:'do',q:'',loading:true,user:null};
+
+async function loadTasks(userId){
+  // Get all boards for user
+  const{data:members}=await db.from('board_members').select('board_id').eq('user_id',userId);
+  if(!members||!members.length){appState.loading=false;renderApp(appState.user);return;}
+  const boardIds=members.map(m=>m.board_id);
+
+  // Get all non-done tasks with a frequency, across all boards
+  const{data:rows}=await db.from('tasks')
+    .select('id,title,frequency,completion_log,done')
+    .in('board_id',boardIds)
+    .eq('done',false)
+    .not('frequency','is',null)
+    .neq('frequency','');
+
+  appState.tasks=(rows||[])
+    .filter(r=>r.frequency&&r.frequency.trim()&&freqDays(r.frequency)!==null)
+    .map(r=>{
+      const fd=freqDays(r.frequency);
+      const sd=daysSinceDone(r);
+      const over=(fd!==null&&sd!==null&&sd>fd)?sd-fd:null; // days overdue
+      const due=(fd!==null&&sd!==null&&sd===fd)?true:false;
+      const isDo=sd===null||over!==null||due; // never done also goes in DO
+      return{id:r.id,title:r.title||'Untitled',freq:fd,since:sd,over,due,isDo};
+    })
+    .sort((a,b)=>{
+      // DO tab sort: overdue first (most overdue at top), then due, then never done
+      // DON'T tab sort: closest to due first (ascending days remaining)
+      return 0; // sorted per-tab below
+    });
+
+  appState.loading=false;
+  render();
+}
+
+function renderApp(user){
+  appState.user=user;
+  const root=document.getElementById('root');
+
+  root.innerHTML=`
+    <div class="app">
+      <div class="header">
+        <div class="header-left">
+          <span class="app-name">FREQ</span>
+          <span class="app-count" id="hdr-count"></span>
+        </div>
+        <button class="signout-btn" id="signout-btn">sign out</button>
+      </div>
+      <div class="tabs">
+        <button class="tab" id="tab-do" data-tab="do">DO</button>
+        <button class="tab" id="tab-dont" data-tab="dont">DON'T</button>
+      </div>
+      <div class="filter-bar">
+        <input class="filter-inp" id="filter-inp" placeholder="Filter tasks…" type="search"/>
+      </div>
+      <div class="col-headers">
+        <span class="col-hdr">Freq</span>
+        <span class="col-hdr">Task</span>
+        <span class="col-hdr right">Since</span>
+        <span class="col-hdr right">Over</span>
+      </div>
+      <div class="list" id="list">
+        <div class="loading" style="padding:64px 0">
+          <div class="spin" style="width:20px;height:20px;border:2px solid #222;border-top-color:#CAFF4C;border-radius:50%"></div>
+        </div>
+      </div>
+    </div>`;
+
+  root.querySelector('#signout-btn').addEventListener('click',async()=>{
+    await db.auth.signOut();renderAuth();
+  });
+
+  root.querySelector('#filter-inp').addEventListener('input',e=>{
+    appState.q=e.target.value;render();
+  });
+
+  root.querySelectorAll('.tab').forEach(btn=>{
+    btn.addEventListener('click',()=>{appState.tab=btn.dataset.tab;render();});
+  });
+
+  if(!appState.loading){render();}else{loadTasks(user.id);}
+}
+
+function render(){
+  const{tasks,tab,q}=appState;
+
+  // Update tab styles
+  const dBtn=document.getElementById('tab-do');
+  const dntBtn=document.getElementById('tab-dont');
+  if(dBtn){
+    dBtn.className='tab'+(tab==='do'?' active-do':'');
+    dntBtn.className='tab'+(tab==='dont'?' active-dont':'');
+  }
+
+  const listEl=document.getElementById('list');
+  if(!listEl)return;
+
+  // Filter by tab
+  let rows=tasks.filter(t=>tab==='do'?t.isDo:!t.isDo);
+
+  // Filter by search
+  if(q.trim())rows=rows.filter(t=>t.title.toLowerCase().includes(q.toLowerCase()));
+
+  // Sort
+  if(tab==='do'){
+    rows.sort((a,b)=>{
+      // overdue: most overdue first
+      const aOver=a.over??-1, bOver=b.over??-1;
+      if(a.over!==null&&b.over!==null)return bOver-aOver;
+      if(a.over!==null)return -1;
+      if(b.over!==null)return 1;
+      // due (exactly at threshold)
+      if(a.due&&!b.due)return -1;
+      if(b.due&&!a.due)return 1;
+      // never done last
+      return 0;
+    });
+  }else{
+    // DON'T: closest to being due first (smallest days remaining)
+    rows.sort((a,b)=>{
+      const aRem=(a.freq&&a.since!==null)?a.freq-a.since:9999;
+      const bRem=(b.freq&&b.since!==null)?b.freq-b.since:9999;
+      return aRem-bRem;
+    });
+  }
+
+  // Update header count
+  const hdrCount=document.getElementById('hdr-count');
+  if(hdrCount)hdrCount.textContent=`${rows.length} task${rows.length!==1?'s':''}`;
+
+  if(rows.length===0){
+    listEl.innerHTML=`<div class="empty"><div class="empty-icon">${tab==='do'?'✓':'◡'}</div>${tab==='do'?'Nothing overdue or due':'All tasks accounted for'}</div>`;
+    return;
+  }
+
+  // Build rows
+  let html='';
+
+  if(tab==='do'){
+    const overdue=rows.filter(r=>r.over!==null);
+    const due=rows.filter(r=>r.due&&r.over===null);
+    const neverDone=rows.filter(r=>r.since===null);
+
+    if(overdue.length){
+      html+=`<div class="section-label"><div class="section-dot" style="background:#FF453A"></div><span class="section-text" style="color:#FF453A">Overdue</span></div>`;
+      overdue.forEach(t=>{html+=buildRow(t,'do');});
+    }
+    if(due.length){
+      html+=`<div class="section-label"><div class="section-dot" style="background:#FF9F0A"></div><span class="section-text" style="color:#FF9F0A">Due</span></div>`;
+      due.forEach(t=>{html+=buildRow(t,'do');});
+    }
+    if(neverDone.length){
+      html+=`<div class="section-label"><div class="section-dot" style="background:#555"></div><span class="section-text" style="color:#555">Never Done</span></div>`;
+      neverDone.forEach(t=>{html+=buildRow(t,'do');});
+    }
+  }else{
+    rows.forEach(t=>{html+=buildRow(t,'dont');});
+  }
+
+  listEl.innerHTML=html;
+}
+
+function buildRow(t,tab){
+  const sinceVal=t.since!==null?`${t.since}d`:'—';
+  const overVal=t.over!==null?`${t.over}d`:'';
+
+  // Color logic
+  let sinceColor='#555';
+  if(t.since!==null){
+    if(t.over!==null)sinceColor='#FF453A';
+    else if(t.due)sinceColor='#FF9F0A';
+    else sinceColor='#30D158';
+  }
+  const overColor='#FF453A';
+
+  return `<div class="row" data-id="${t.id}">
+    <span class="cell-freq">${t.freq}d</span>
+    <span class="cell-name" title="${escHtml(t.title)}">${escHtml(t.title)}</span>
+    <span class="cell-since" style="color:${sinceColor}">${sinceVal}</span>
+    <span class="cell-over" style="color:${overColor}">${overVal}</span>
+  </div>`;
+}
+
+function escHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────
+(async()=>{
+  const{data:{session}}=await db.auth.getSession();
+  if(session){renderApp(session.user);}
+  else{renderAuth();}
+})();
+</script>
+</body>
+</html>
